@@ -35,17 +35,20 @@ async def on_ready():
 
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
+    guild = bot.get_guild(payload.guild_id)
+    member = guild.get_member(payload.user_id)
+    if member == bot.user:
+        return
+    
     role_config = gestionJson.load_role_config()
     role_config_guild = role_config[str(payload.guild_id)]
 
     if str(payload.message_id) in role_config_guild and payload.emoji.name in role_config_guild[str(payload.message_id)]:
-        guild = bot.get_guild(payload.guild_id)
         role_id = role_config_guild[str(payload.message_id)][payload.emoji.name]
         role = guild.get_role(role_id)
-        member = guild.get_member(payload.user_id)
 
     if role and member:
-        await member.add_roles(role)
+            await member.add_roles(role)
 
 
 
@@ -78,10 +81,30 @@ async def ping_command(interaction: discord.Interaction):
 @discord.option("role", discord.Role, description="Le rôle attribué.")
 @commands.has_permissions(manage_roles=True)
 async def add_reaction_role(interaction: discord.Interaction, message_link: str, emoji: str, role: discord.Role):  
-    
     guild_id, channel_id, message_id = fonctions.extract_id_from_link(message_link)    
-    role_config = gestionJson.load_role_config()
+    if guild_id != interaction.guild.id:
+        await interaction.response.send_message(
+            f"Le lien que vous m'avez fourni provient d'un autre serveur.", 
+            ephemeral=True
+            )
+        return
 
+    guild = interaction.guild
+    channel = await bot.fetch_channel(channel_id)
+    message = await channel.fetch_message(message_id)
+
+    bot_highest_role = max(guild.me.roles, key=lambda r: r.position)
+    if role.position >= bot_highest_role.position:
+        channel = await bot.fetch_channel(channel_id)
+        await interaction.response.send_message(
+            f"Je ne peux pas attribuer le rôle `{role.name}` car il est au-dessus de mes permissions.",
+            ephemeral=True
+        )
+        return
+
+
+    role_config = gestionJson.load_role_config()
+    
     if str(guild_id) not in role_config:
         role_config[str(guild_id)] = {}
     
@@ -92,10 +115,15 @@ async def add_reaction_role(interaction: discord.Interaction, message_link: str,
     role_config_guild[str(message_id)][emoji] = role.id
 
     gestionJson.save_role_config(role_config)
+    
 
-    channel = await bot.fetch_channel(channel_id)
-    message = await channel.fetch_message(message_id)
-    await message.add_reaction(emoji)
+    try:
+        await message.add_reaction(emoji)
+    except discord.NotFound:
+        await channel.send("Message ou canal introuvable.")
+    except discord.Forbidden:
+        await channel.send("Je n'ai pas la permission d'ajouter une réaction à ce message.")
+
 
     await interaction.response.send_message(
         f"Réaction {emoji} associée au rôle @{role.name} pour le message sélectionné : \nMessage : {message.content}", ephemeral=True)
