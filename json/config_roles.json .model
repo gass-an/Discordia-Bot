@@ -1,0 +1,7 @@
+{
+    "<guild_id>": {
+        "<message_id>": {
+            "<emoji>": <role_id>
+        } 
+    }
+}
