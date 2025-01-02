@@ -51,7 +51,6 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             await member.add_roles(role)
 
 
-
 @bot.event
 async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
     role_config = gestionJson.load_role_config()
@@ -65,6 +64,7 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
 
     if role and member:
         await member.remove_roles(role)
+
 
 # ------------------------------------ Commandes du bot  ---------------------------------------------
 
@@ -129,9 +129,35 @@ async def add_reaction_role(interaction: discord.Interaction, message_link: str,
         f"Réaction {emoji} associée au rôle @{role.name} pour le message sélectionné : \nMessage : {message.content}", ephemeral=True)
     
 
+@bot.slash_command(name="remove_all_reactions", description="Retire toutes les réaction d'un message.")
+@discord.option("message_link", str, description="Le lien du message qui contiendra la réaction.")
+@commands.has_permissions(manage_roles=True, manage_messages=True)
+async def add_reaction_role(interaction: discord.Interaction, message_link: str):  
+    guild_id, channel_id, message_id = fonctions.extract_id_from_link(message_link)    
+    if guild_id != interaction.guild.id:
+        await interaction.response.send_message(
+            f"Le lien que vous m'avez fourni provient d'un autre serveur.", 
+            ephemeral=True
+            )
+        return
 
-
-
+    channel = await bot.fetch_channel(channel_id)
+    message = await channel.fetch_message(message_id)
+    
+    role_config = gestionJson.load_role_config()
+    role_config_guild = role_config[str(guild_id)]
+    
+    if str(message_id) in role_config_guild:
+        del role_config_guild[str(message_id)]
+    
+    gestionJson.save_role_config(role_config)
+    
+    try :
+        await message.clear_reactions()
+    except discord.Forbidden:
+        await interaction.response.send_message("Je n'ai pas la permission de supprimer les réactions.", ephemeral=True)
+        return
+    await interaction.response.send_message(f"Toutes les réactions ont été supprimées du message sélectionné.\n**Message** : \n{message.content}", ephemeral=True)
 
 
 # ------------------------------------ Gestion des erreurs de permissions  ---------------------------
