@@ -32,7 +32,6 @@ async def on_ready():
 
 
 # ------------------------------------ Gestion des rôles  --------------------------------------------
-
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     guild = bot.get_guild(payload.guild_id)
@@ -68,6 +67,35 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
         await member.remove_roles(role)
 
 
+# ------------------------------------ Gestion des messages ------------------------------------------
+@bot.event
+async def on_message(message: discord.Message):
+    if message.author == bot.user:
+        return
+    user_message = message.content
+    
+    if not user_message:
+        return
+    
+    guild_id = message.guild.id
+    channel_id = message.channel.id
+    
+    secret_role, role_id = responses.secret_role(
+        user_message=user_message,
+        guild_id=guild_id, 
+        channel_id=channel_id
+        )
+    
+    
+    if not secret_role:
+        return
+    await message.delete()
+    guild = bot.get_guild(guild_id)
+    role = guild.get_role(role_id)
+    await message.author.add_roles(role)
+
+
+
 # ------------------------------------ Commandes du bot  ---------------------------------------------
 
 # /ping (répond : Pong!) 
@@ -75,6 +103,8 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
 async def ping_command(interaction: discord.Interaction):
     await interaction.response.send_message("Pong !")
 
+
+# ---------- Reactions Roles ----------
 
 @bot.slash_command(name="add_reaction_role", description="Associe une réaction sur un message défini à un rôle.")
 @discord.option("message_link", str, description="Le lien du message qui contiendra la réaction.")
@@ -96,15 +126,15 @@ async def add_reaction_role(interaction: discord.Interaction, message_link: str,
 
     bot_highest_role = max(guild.me.roles, key=lambda r: r.position)
     if role.position >= bot_highest_role.position:
-        channel = await bot.fetch_channel(channel_id)
         await interaction.edit(content=f"Je ne peux pas attribuer le rôle `{role.name}` car il est au-dessus de mes permissions.")
         return
 
     role_config = gestionJson.load_role_config()
-    role_config_guild = role_config[str(guild_id)]
 
     if str(guild_id) not in role_config:
         role_config[str(guild_id)] = {}
+    
+    role_config_guild = role_config[str(guild_id)]
     
     if str(message_id) not in role_config_guild:
         role_config_guild[str(message_id)] = {}
@@ -208,7 +238,6 @@ async def remove_specific_reaction(interaction: discord.Interaction, message_lin
 
 
 
-
 @bot.slash_command(name="list_of_reaction_roles", description="Affiche la liste des tous les rôles attribués avec une réaction à un message.")
 @commands.has_permissions(manage_roles=True)
 async def list_reaction_roles(interaction: discord.Interaction):
@@ -224,20 +253,107 @@ async def list_reaction_roles(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, files=files, view=paginator)
 
 
+# ---------- Secrets Roles ------------
+@bot.slash_command(name="add_secret_role", description="Attribue un role défini si l'utilisateur entre le bon message dans le bon channel")
+@discord.option("message", str, description="Le message exact pour que le rôle soit attribué.")
+@discord.option("channel", discord.TextChannel, description="Le channel cible pour le message.")
+@discord.option("role", discord.Role, description="Le rôle attribué.")
+@commands.has_permissions(manage_roles=True)
+async def add_secret_role(interaction: discord.Interaction, message: str, channel: discord.TextChannel, role: discord.Role):
+    await interaction.response.send_message("Votre demande est en cours de traitement...", ephemeral=True)
+
+    guild = interaction.guild
+    bot_highest_role = max(guild.me.roles, key=lambda r: r.position)
+    if role.position >= bot_highest_role.position:
+        await interaction.edit(content=f"Je ne peux pas attribuer le rôle `{role.name}` car il est au-dessus de mes permissions.")
+        return
+
+    guild_id = guild.id
+    channel_id = channel.id
+    secret_roles = gestionJson.load_secret_role_config()
+
+    if str(guild_id) not in secret_roles:
+        secret_roles[str(guild_id)] = {}
+    secret_roles_guild = secret_roles[str(guild_id)]
+
+    if str(channel_id) not in secret_roles_guild:
+        secret_roles_guild[str(channel_id)] = {}
+    secret_roles_channel = secret_roles_guild[str(channel_id)]
+
+    for existing_message, existing_role_id in secret_roles_channel.items():
+        if existing_role_id != role.id and existing_message == str(message):
+            await interaction.edit(content=f"Le message {message} est déjà associé au rôle `{role.name}` dans le même channel.")
+            return
+
+    secret_roles_channel[str(message)] = role.id
+
+    try:
+        bot_member = guild.get_member(bot.user.id)
+        await bot_member.add_roles(role)
+        await bot_member.remove_roles(role)
+    except discord.NotFound:
+        await interaction.edit(content="Message ou canal introuvable.")
+        return
+    except discord.Forbidden:
+        await interaction.edit(content=(
+            "Je n'ai pas le droit de gérer ce rôle."
+            ))
+        return
+    
+    gestionJson.save_secret_role_config(secret_roles)
+
+    await interaction.edit(content=f"Le rôle `{role.name}` est bien associée au message suivant : `{message}`")
+
+
+async def message_secret_role_autocomplete(interaction: discord.AutocompleteContext):
+    user_input = interaction.value.lower()
+    guild_id = interaction.interaction.guild.id
+    channel_id = interaction.options.get("channel")
+    all_messages=gestionJson.get_messages_secret_role(guild_id=guild_id, channel_id=channel_id)
+    return [message for message in all_messages if user_input in message.lower()][:25]
+
+
+@bot.slash_command(name="delete_secret_role", description="Attribue un role défini si l'utilisateur entre le bon message dans le bon channel")
+@discord.option("channel", discord.TextChannel, description="Le channel cible pour le message.")
+@discord.option("message", str, description="Le message exact pour que le rôle soit attribué.", autocomplete=message_secret_role_autocomplete)
+@commands.has_permissions(manage_roles=True)
+async def delete_secret_role(interaction: discord.Interaction, channel: discord.TextChannel, message: str):
+    await interaction.response.send_message("Votre demande est en cours de traitement...", ephemeral=True)
+    guild_id = interaction.guild.id
+    channel_id = channel.id
+    secret_roles = gestionJson.load_secret_role_config()
+
+    if str(guild_id) not in secret_roles:
+        return
+    secret_roles_guild = secret_roles[str(guild_id)]
+
+    if str(channel_id) not in secret_roles_guild:
+        return
+    secret_roles_channel = secret_roles_guild[str(channel_id)]
+
+    if message not in secret_roles_channel:
+        return 
+    del secret_roles_channel[message]
+
+    gestionJson.save_secret_role_config(secret_roles)
+
+    await interaction.edit(content=f"Le message `{message}` n'attribue plus de rôle")
+
 
 # ------------------------------------ Gestion des erreurs de permissions  ---------------------------
-@bot.event
-async def on_application_command_error(interaction: discord.Interaction, error):
-    if isinstance(error, commands.MissingRole):
-        await interaction.response.send_message(
-            "Vous n'avez pas le rôle requis pour utiliser cette commande.",
-            ephemeral=True
-        )
-    else:
-        await interaction.response.send_message(
-            "Une erreur est survenue lors de l'exécution de la commande.",
-            ephemeral=True
-        )
+
+# @bot.event
+# async def on_application_command_error(interaction: discord.Interaction, error):
+#     if isinstance(error, commands.MissingRole):
+#         await interaction.response.send_message(
+#             "Vous n'avez pas le rôle requis pour utiliser cette commande.",
+#             ephemeral=True
+#         )
+#     else:
+#         await interaction.response.send_message(
+#             "Une erreur est survenue lors de l'exécution de la commande.",
+#             ephemeral=True
+#         )
 
 
 def main():

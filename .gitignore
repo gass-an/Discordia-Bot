@@ -1,4 +1,4 @@
 __pycache__
 .env
 config_roles.json
-images
+config_secret_roles.json

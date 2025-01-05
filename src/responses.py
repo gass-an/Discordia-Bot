@@ -12,7 +12,7 @@ async def generate_list_roles_embed(roles, current_page, total_pages, guild_id, 
     embed=discord.Embed(
             title="Liste des rôles",
             description="Voici ci-dessous la liste de tous rôles attribués avec une réaction à un message.",
-            colour=discord.Color(0xFF0000)
+            colour=discord.Color(0x00FFFF)
         ) 
 
     for message_id in roles:
@@ -34,16 +34,26 @@ async def generate_list_roles_embed(roles, current_page, total_pages, guild_id, 
     embed.set_footer(text=f"Nombre de rôles attribués : {nb_roles}\nPage {current_page + 1}/{total_pages}")
 
 
-    thumbnail_path = "./images/logo_PillboxHospital.png"
-    thumbnail_file = discord.File(thumbnail_path, filename="logo_PillboxHospital.png")
-    embed.set_thumbnail(url="attachment://logo_PillboxHospital.png")
+    thumbnail_path = "./images/logo_Bot.png"
+    thumbnail_file = discord.File(thumbnail_path, filename="logo_Bot.png")
+    embed.set_thumbnail(url="attachment://logo_Bot.png")
 
-    image_path = f"./images/banner_PillboxHospital.png"
-    image_file = discord.File(image_path, filename="banner_PillboxHospital.png")
-    embed.set_image(url="attachment://banner_PillboxHospital.png")
+    image_path = f"./images/banner_Bot.png"
+    image_file = discord.File(image_path, filename="banner_Bot.png")
+    embed.set_image(url="attachment://banner_Bot.png")
 
     files =[thumbnail_file,image_file]
 
     return embed,files
+
+def secret_role(user_message: discord.Message, guild_id: int, channel_id: int):
+    
+    roles = gestionJson.load_secret_role_config()
+    secret_roles_list = list(roles[str(guild_id)][str(channel_id)].items())
+
+    for secret_role in secret_roles_list : 
+        if user_message == secret_role[0]:
+            return True, secret_role[1]
+    return False, None
 
 
