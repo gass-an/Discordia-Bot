@@ -27,7 +27,7 @@ async def on_ready():
         print("\nLes commandes globales ont été synchronisées.")
     except Exception as e:
         print(f"Erreur lors de la synchronisation des commandes : {e}")
-    
+#    fonctions.json_init()
     print(f"{bot.user} est en cours d'exécution !\n")
 
 
@@ -244,9 +244,12 @@ async def list_reaction_roles(interaction: discord.Interaction):
     
     guild_id = interaction.guild.id
     role_config = gestionJson.load_role_config()
-    role_config_guild = role_config[str(guild_id)]
-    role_config_guild_list = list(role_config_guild.items())
-
+    if str(guild_id) in role_config:
+        role_config_guild = role_config[str(guild_id)]
+        role_config_guild_list = list(role_config_guild.items())
+    else :
+        role_config_guild_list = []
+    
     await interaction.response.defer()
     paginator = gestionPages.Paginator(items=role_config_guild_list,embed_generator=responses.generate_list_roles_embed, identifiant_for_embed=guild_id, bot=bot)
     embed,files = await paginator.create_embed()
@@ -342,18 +345,16 @@ async def delete_secret_role(interaction: discord.Interaction, channel: discord.
 
 # ------------------------------------ Gestion des erreurs de permissions  ---------------------------
 
-# @bot.event
-# async def on_application_command_error(interaction: discord.Interaction, error):
-#     if isinstance(error, commands.MissingRole):
-#         await interaction.response.send_message(
-#             "Vous n'avez pas le rôle requis pour utiliser cette commande.",
-#             ephemeral=True
-#         )
-#     else:
-#         await interaction.response.send_message(
-#             "Une erreur est survenue lors de l'exécution de la commande.",
-#             ephemeral=True
-#         )
+@bot.event
+async def on_application_command_error(interaction: discord.Interaction, error):
+    if isinstance(error, commands.MissingRole):
+        await interaction.edit(
+            content="Vous n'avez pas le rôle requis pour utiliser cette commande."
+        )
+    else:
+        await interaction.edit(
+            content="Une erreur est survenue lors de l'exécution de la commande."
+        )
 
 
 def main():

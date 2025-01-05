@@ -1,5 +1,6 @@
 import re, discord
 from discord.ext import commands
+import gestionJson
 
 def extract_id_from_link(link: str):
     ids_match = re.match(r"https://discord\.com/channels/(\d+)/(\d+)/(\d+)", link)
@@ -25,3 +26,8 @@ async def find_channel_id(bot: commands.Bot, message_id: int, guild_id: int):
         except discord.Forbidden:
             continue
     return None
+
+def json_init():
+    data = {}
+    gestionJson.save_role_config(data=data)
+    gestionJson.save_secret_role_config(data=data)
