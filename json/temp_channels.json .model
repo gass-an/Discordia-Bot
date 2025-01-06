@@ -1,0 +1,10 @@
+{
+    "<guild_id>": {
+        "<channel_id>": {
+            "user_limit": int,
+            "active_channel": [
+                <created_channel_id>
+            ]
+        }
+    }
+}
