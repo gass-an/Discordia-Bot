@@ -105,11 +105,11 @@ async def on_message(message: discord.Message):
 # ------------------------------------ Gestion des salons vocaux -------------------------------------
 @bot.event
 async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-    
+
     guild = member.guild
     temp_channels = gestionJson.load_json("temp_channels")
     
-
+ 
     if str(guild.id) not in temp_channels:
 
         return
@@ -504,7 +504,19 @@ async def manual_save_command(interaction: discord.Interaction):
     else:
         await channel.send("Fichier Patient introuvable !", ephemeral=True)
 
+    if os.path.exists("./json/temp_channels.json"):
+
+        with open("./json/temp_channels.json", "rb") as file:
+            await channel.send(
+                content="Sauvegarde du fichier temp_channels.json suite à une demande.",
+                file=discord.File(file, filename=f"temp_channels_{datetime.now().strftime('%Y%m%d')}.json")
+            )
+    else:
+        await channel.send("Fichier Patient introuvable !", ephemeral=True)
+
+
     await interaction.response.send_message("Fichiers bien envoyés ! ", ephemeral=True)
+
 
 
 @bot.slash_command(name="insert_config_roles_reaction", description="Remplace le config_roles.json par celui fourni",guild_ids=[SAVE_GUILD_ID])
@@ -560,9 +572,31 @@ async def insert_json_secret_command(interaction: discord.Interaction, message_i
         os.remove(file_path)
         await interaction.response.send_message("Le config_secret_roles.json à bien été remplacé", ephemeral=True)
     
+@bot.slash_command(name="insert_temp_channels", description="Remplace le temp_channels.json par celui fourni",guild_ids=[SAVE_GUILD_ID])
+@discord.option("message_id", str, description= "Id du message contenant le json")
+async def insert_json_secret_command(interaction: discord.Interaction, message_id: str ):
+    if interaction.user.id != MY_ID:
+        await interaction.response.send_message("Vous ne pouvez pas faire cela", ephemeral=True)
+    else:
+        guild = bot.get_guild(SAVE_GUILD_ID)
+        channel = guild.get_channel(SAVE_CHANNEL_ID)
+        message = await channel.fetch_message(message_id)
+        attachment = message.attachments[0]
+        
+        file_path = f"./json/temp_{attachment.filename}"
+        await attachment.save(file_path)
 
 
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        file.close()
 
+
+        with open('./json/temp_channels.json', mode='w') as fichier:
+            json.dump(data, fichier, indent=4)
+
+        os.remove(file_path)
+        await interaction.response.send_message("Le temp_channels.json à bien été remplacé", ephemeral=True)
 
 
 

@@ -31,3 +31,4 @@ def json_init():
     data = {}
     gestionJson.save_json(name="config_roles",data=data)
     gestionJson.save_json(name="config_secret_roles",data=data)
+    gestionJson.save_json(name="temp_channels", data=data)
