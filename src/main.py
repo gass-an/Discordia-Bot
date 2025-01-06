@@ -1,7 +1,8 @@
 from typing import Final
 from dotenv import load_dotenv
-import os, discord, asyncio
+import os, discord, json
 from discord.ext import commands, tasks
+from datetime import datetime, time, timezone
 import fonctions, gestionJson, gestionPages, responses
 
 
@@ -9,6 +10,10 @@ import fonctions, gestionJson, gestionPages, responses
 load_dotenv()
 TOKEN: Final[str] = os.getenv('discord_token')
 
+# Pour save
+MY_ID: Final[int] = int(os.getenv('my_id'))
+SAVE_GUILD_ID: Final[int] = int(os.getenv('guild_for_save'))
+SAVE_CHANNEL_ID: Final[int] = int(os.getenv('channel_for_save')) 
 
 # ------------------------------------ Initialisation du bot  ----------------------------------------
 intents = discord.Intents.default()
@@ -257,6 +262,7 @@ async def list_reaction_roles(interaction: discord.Interaction):
 
 
 # ---------- Secrets Roles ------------
+
 @bot.slash_command(name="add_secret_role", description="Attribue un role défini si l'utilisateur entre le bon message dans le bon channel")
 @discord.option("message", str, description="Le message exact pour que le rôle soit attribué.")
 @discord.option("channel", discord.TextChannel, description="Le channel cible pour le message.")
@@ -362,6 +368,96 @@ async def list_reaction_roles(interaction: discord.Interaction):
 
 
 
+
+
+# ---------- Saves ------------
+
+@bot.slash_command(name="manual_save", description="Envoie les json dans un channel précis", guild_ids=[SAVE_GUILD_ID])
+async def manual_save_command(interaction: discord.Interaction):
+    if interaction.user.id != MY_ID:
+        await interaction.response.send_message("Vous ne pouvez pas faire cela", ephemeral=True)
+        return
+
+    guild = bot.get_guild(SAVE_GUILD_ID)
+    channel = guild.get_channel(SAVE_CHANNEL_ID)
+
+    if os.path.exists("./json/config_roles.json"):
+
+        with open("./json/config_roles.json", "rb") as file:
+            await channel.send(
+                content="Sauvegarde du fichier config_roles.json suite à une demande.",
+                file=discord.File(file, filename=f"Config_roles_REACTION_{datetime.now().strftime('%Y%m%d')}.json")
+            )
+    else:
+        await channel.send("Fichier Patient introuvable !", ephemeral=True)
+
+
+    if os.path.exists("./json/config_secret_roles.json"):
+
+        with open("./json/config_secret_roles.json", "rb") as file:
+            await channel.send(
+                content="Sauvegarde du fichier config_secret_roles.json suite à une demande.",
+                file=discord.File(file, filename=f"Config_roles_SECRET_{datetime.now().strftime('%Y%m%d')}.json")
+            )
+    else:
+        await channel.send("Fichier Patient introuvable !", ephemeral=True)
+
+    await interaction.response.send_message("Fichiers bien envoyés ! ", ephemeral=True)
+
+
+
+@bot.slash_command(name="insert_config_roles_reaction", description="Remplace le config_roles.json par celui fourni",guild_ids=[SAVE_GUILD_ID])
+@discord.option("message_id", str, description= "Id du message contenant le json")
+async def insert_json_command(interaction: discord.Interaction, message_id: str ):
+    if interaction.user.id != MY_ID:
+        await interaction.response.send_message("Vous ne pouvez pas faire cela", ephemeral=True)
+    else:
+        guild = bot.get_guild(SAVE_GUILD_ID)
+        channel = guild.get_channel(SAVE_CHANNEL_ID)
+        message = await channel.fetch_message(message_id)
+        attachment = message.attachments[0]
+        
+        file_path = f"./json/temp_{attachment.filename}"
+        await attachment.save(file_path)
+
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        file.close()
+
+
+        with open('./json/config_roles.json', mode='w') as fichier:
+            json.dump(data, fichier, indent=4)
+
+        os.remove(file_path)
+        await interaction.response.send_message("Le config_roles.json à bien été remplacé", ephemeral=True)
+
+
+@bot.slash_command(name="insert_config_roles_secret", description="Remplace le config_secret_roles.json par celui fourni",guild_ids=[SAVE_GUILD_ID])
+@discord.option("message_id", str, description= "Id du message contenant le json")
+async def insert_json_command(interaction: discord.Interaction, message_id: str ):
+    if interaction.user.id != MY_ID:
+        await interaction.response.send_message("Vous ne pouvez pas faire cela", ephemeral=True)
+    else:
+        guild = bot.get_guild(SAVE_GUILD_ID)
+        channel = guild.get_channel(SAVE_CHANNEL_ID)
+        message = await channel.fetch_message(message_id)
+        attachment = message.attachments[0]
+        
+        file_path = f"./json/temp_{attachment.filename}"
+        await attachment.save(file_path)
+
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        file.close()
+
+
+        with open('./json/config_secret_roles.json', mode='w') as fichier:
+            json.dump(data, fichier, indent=4)
+
+        os.remove(file_path)
+        await interaction.response.send_message("Le config_secret_roles.json à bien été remplacé", ephemeral=True)
 
 # ------------------------------------ Gestion des erreurs de permissions  ---------------------------
 
