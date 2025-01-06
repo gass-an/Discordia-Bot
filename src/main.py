@@ -44,8 +44,8 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     if member == bot.user:
         return
     
-    role = False
-    role_config = gestionJson.load_role_config()
+    role = False 
+    role_config = gestionJson.load_json("config_roles")
     role_config_guild = role_config[str(payload.guild_id)]
 
     if str(payload.message_id) in role_config_guild and payload.emoji.name in role_config_guild[str(payload.message_id)]:
@@ -59,7 +59,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 @bot.event
 async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
     role = False
-    role_config = gestionJson.load_role_config()
+    role_config = gestionJson.load_json("config_roles")
     role_config_guild = role_config[str(payload.guild_id)]
 
     if str(payload.message_id) in role_config_guild and payload.emoji.name in role_config_guild[str(payload.message_id)]:
@@ -73,6 +73,7 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
 
 
 # ------------------------------------ Gestion des messages ------------------------------------------
+
 @bot.event
 async def on_message(message: discord.Message):
     if message.author == bot.user:
@@ -98,6 +99,75 @@ async def on_message(message: discord.Message):
     guild = bot.get_guild(guild_id)
     role = guild.get_role(role_id)
     await message.author.add_roles(role)
+
+
+
+# ------------------------------------ Gestion des salons vocaux -------------------------------------
+@bot.event
+async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+    
+    guild = member.guild
+    temp_channels = gestionJson.load_json("temp_channels")
+    
+
+    if str(guild.id) not in temp_channels:
+
+        return
+    temp_channels_guild = temp_channels[str(guild.id)]
+    
+    # Pour créer les channels
+    if after.channel and (str(after.channel.id) in temp_channels_guild):
+
+        temp_channels_channel = temp_channels_guild[str(after.channel.id)]
+        user_limit = temp_channels_channel["user_limit"]
+
+        category = after.channel.category
+        new_channel_name = f"Salon de {member.display_name}"
+        overwrites = {
+            member: discord.PermissionOverwrite(view_channel=True, manage_channels=True), 
+        }
+
+        new_channel = await guild.create_voice_channel(
+            name=new_channel_name,
+            category=category,
+            overwrites=overwrites,
+            bitrate=after.channel.bitrate,  # Copiez la qualité audio du salon cible
+            user_limit=user_limit, 
+        )
+
+        await member.move_to(new_channel)
+        temp_channels_channel["active_channel"].append(new_channel.id)
+        gestionJson.save_json("temp_channels",temp_channels)    
+
+    
+
+    # Pour delete les channels vides
+
+    all_parents_channel = []
+    for channel_id, channel_info in temp_channels_guild.items():
+        active_channels = channel_info.get("active_channel", [])
+
+        for i in range(len(active_channels)):
+            all_parents_channel.append(channel_id)
+
+    
+    if before.channel:
+        if before.channel.id in active_channels:
+            before_parent_channel_index = active_channels.index(before.channel.id)
+            before_parent_channel = all_parents_channel[before_parent_channel_index]
+
+            temp_channels_channel = temp_channels_guild[str(before_parent_channel)]
+
+            if len(before.channel.members) == 0:
+                await before.channel.delete()
+
+                if before.channel.id in temp_channels_channel["active_channel"]:
+                    temp_channels_channel["active_channel"].remove(before.channel.id)
+                    gestionJson.save_json("temp_channels",temp_channels)
+
+
+
+
 
 
 
@@ -134,7 +204,7 @@ async def add_reaction_role(interaction: discord.Interaction, message_link: str,
         await interaction.edit(content=f"Je ne peux pas attribuer le rôle `{role.name}` car il est au-dessus de mes permissions.")
         return
 
-    role_config = gestionJson.load_role_config()
+    role_config = gestionJson.load_json("config_roles")
 
     if str(guild_id) not in role_config:
         role_config[str(guild_id)] = {}
@@ -173,10 +243,10 @@ async def add_reaction_role(interaction: discord.Interaction, message_link: str,
             ))
         return
 
-    gestionJson.save_role_config(role_config)
+    gestionJson.save_json("config_roles",role_config)
 
     await interaction.edit(content=f"## La réaction {emoji} est bien associée au rôle `{role.name}` sur le message sélectionné ! \n**Message :**\n {message.content}")
-    
+
 
 @bot.slash_command(name="remove_all_reactions", description="Retire toutes les réaction d'un message.")
 @discord.option("message_link", str, description="Le lien du message qui contiendra la réaction.")
@@ -193,13 +263,13 @@ async def remove_all_reactions(interaction: discord.Interaction, message_link: s
     channel = await bot.fetch_channel(channel_id)
     message = await channel.fetch_message(message_id)
     
-    role_config = gestionJson.load_role_config()
+    role_config = gestionJson.load_json("config_roles")
     role_config_guild = role_config[str(guild_id)]
     
     if str(message_id) in role_config_guild:
         del role_config_guild[str(message_id)]
     
-    gestionJson.save_role_config(role_config)
+    gestionJson.save_json("config_roles", role_config)
     
     try :
         await message.clear_reactions()
@@ -207,7 +277,6 @@ async def remove_all_reactions(interaction: discord.Interaction, message_link: s
         await interaction.response.send_message("Je n'ai pas la permission de supprimer les réactions.", ephemeral=True)
         return
     await interaction.response.send_message(f"## Toutes les réactions ont été supprimées du message sélectionné.\n**Message** : \n{message.content}", ephemeral=True)
-
 
 
 @bot.slash_command(name="remove_specific_reaction", description="Retire une réaction spécifique d'un message.")
@@ -225,13 +294,13 @@ async def remove_specific_reaction(interaction: discord.Interaction, message_lin
     channel = await bot.fetch_channel(channel_id)
     message = await channel.fetch_message(message_id)
 
-    role_config = gestionJson.load_role_config()
+    role_config = gestionJson.load_json("config_roles")
     role_config_guild = role_config[str(guild_id)]
 
     if str(message_id) in role_config_guild:
         if emoji in role_config_guild[str(message_id)]:
             del role_config_guild[str(message_id)][emoji]
-            gestionJson.save_role_config(role_config)
+            gestionJson.save_json("config_roles", role_config)
     
 
     try:
@@ -242,13 +311,12 @@ async def remove_specific_reaction(interaction: discord.Interaction, message_lin
     await interaction.response.send_message(f"## L'emoji {emoji} a bien été retiré du message.\n**Message** : \n{message.content}", ephemeral=True)
 
 
-
 @bot.slash_command(name="list_of_reaction_roles", description="Affiche la liste des tous les rôles attribués avec une réaction à un message.")
 @commands.has_permissions(manage_roles=True)
 async def list_reaction_roles(interaction: discord.Interaction):
     
     guild_id = interaction.guild.id
-    role_config = gestionJson.load_role_config()
+    role_config = gestionJson.load_json("config_roles")
     if str(guild_id) in role_config:
         role_config_guild = role_config[str(guild_id)]
         role_config_guild_list = list(role_config_guild.items())
@@ -279,7 +347,7 @@ async def add_secret_role(interaction: discord.Interaction, message: str, channe
 
     guild_id = guild.id
     channel_id = channel.id
-    secret_roles = gestionJson.load_secret_role_config()
+    secret_roles = gestionJson.load_json("config_secret_roles")
 
     if str(guild_id) not in secret_roles:
         secret_roles[str(guild_id)] = {}
@@ -309,7 +377,7 @@ async def add_secret_role(interaction: discord.Interaction, message: str, channe
             ))
         return
     
-    gestionJson.save_secret_role_config(secret_roles)
+    gestionJson.save_json("config_secret_roles", secret_roles)
 
     await interaction.edit(content=f"Le rôle `{role.name}` est bien associée au message suivant : `{message}`")
 
@@ -330,7 +398,7 @@ async def delete_secret_role(interaction: discord.Interaction, channel: discord.
     await interaction.response.send_message("Votre demande est en cours de traitement...", ephemeral=True)
     guild_id = interaction.guild.id
     channel_id = channel.id
-    secret_roles = gestionJson.load_secret_role_config()
+    secret_roles = gestionJson.load_json("config_secret_roles")
 
     if str(guild_id) not in secret_roles:
         return
@@ -344,7 +412,7 @@ async def delete_secret_role(interaction: discord.Interaction, channel: discord.
         return 
     del secret_roles_channel[message]
 
-    gestionJson.save_secret_role_config(secret_roles)
+    gestionJson.save_json("config_secret_roles", secret_roles)
 
     await interaction.edit(content=f"Le message `{message}` n'attribue plus de rôle")
 
@@ -354,7 +422,7 @@ async def delete_secret_role(interaction: discord.Interaction, channel: discord.
 async def list_reaction_roles(interaction: discord.Interaction):
     
     guild_id = interaction.guild.id
-    secret_roles = gestionJson.load_secret_role_config()
+    secret_roles = gestionJson.load_json("config_secret_roles")
     if str(guild_id) in secret_roles:
         secret_roles_guild = secret_roles[str(guild_id)]
         secret_roles_guild_list = list(secret_roles_guild.items())
@@ -367,10 +435,44 @@ async def list_reaction_roles(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, files=files, view=paginator)
 
 
+# ------ Création salons vocaux -------
+
+@bot.slash_command(name="init_creation_voice_channel", description="Défini le salon qui permettra à chacun de créer son propre salon vocal temporaire")
+@discord.option("channel", discord.VoiceChannel, description="Le channel cible pour la création d'autres salon vocaux.")
+@discord.option("user_limit", int, description="Le nombre de personnes qui pourront rejoindre les salons créés", min_value=1, max_value=99)
+async def init_creation_voice_channel(interaction: discord.Interaction, channel: discord.VoiceChannel, user_limit: int):
+    await interaction.response.send_message("Votre demande est en cours de traitement...", ephemeral=True)
+    guild_id = interaction.guild.id
+    channel_id = channel.id
+    temp_channels = gestionJson.load_json("temp_channels")
+    
+    if str(guild_id) not in temp_channels:
+        temp_channels[str(guild_id)] = {}
+    temp_channels_guild = temp_channels[str(guild_id)]
+
+    if str(channel_id) not in temp_channels_guild: 
+        temp_channels_guild[str(channel_id)] = {
+            "user_limit" : user_limit,
+            "active_channel" : []
+        }
+    else : 
+        temp_channels_guild[str(channel_id)]["user_limit"] = user_limit
+
+    gestionJson.save_json("temp_channels", temp_channels)
+
+    await interaction.edit(content=f"Le salon `{channel.name}` est désormais paramétré pour créer des salons pour {user_limit} personnes maximum")
 
 
 
-# ---------- Saves ------------
+
+
+
+
+
+
+
+
+# -------------- Saves ----------------
 
 @bot.slash_command(name="manual_save", description="Envoie les json dans un channel précis", guild_ids=[SAVE_GUILD_ID])
 async def manual_save_command(interaction: discord.Interaction):
@@ -405,10 +507,9 @@ async def manual_save_command(interaction: discord.Interaction):
     await interaction.response.send_message("Fichiers bien envoyés ! ", ephemeral=True)
 
 
-
 @bot.slash_command(name="insert_config_roles_reaction", description="Remplace le config_roles.json par celui fourni",guild_ids=[SAVE_GUILD_ID])
 @discord.option("message_id", str, description= "Id du message contenant le json")
-async def insert_json_command(interaction: discord.Interaction, message_id: str ):
+async def insert_json_reaction_command(interaction: discord.Interaction, message_id: str ):
     if interaction.user.id != MY_ID:
         await interaction.response.send_message("Vous ne pouvez pas faire cela", ephemeral=True)
     else:
@@ -435,7 +536,7 @@ async def insert_json_command(interaction: discord.Interaction, message_id: str 
 
 @bot.slash_command(name="insert_config_roles_secret", description="Remplace le config_secret_roles.json par celui fourni",guild_ids=[SAVE_GUILD_ID])
 @discord.option("message_id", str, description= "Id du message contenant le json")
-async def insert_json_command(interaction: discord.Interaction, message_id: str ):
+async def insert_json_secret_command(interaction: discord.Interaction, message_id: str ):
     if interaction.user.id != MY_ID:
         await interaction.response.send_message("Vous ne pouvez pas faire cela", ephemeral=True)
     else:
@@ -458,6 +559,12 @@ async def insert_json_command(interaction: discord.Interaction, message_id: str 
 
         os.remove(file_path)
         await interaction.response.send_message("Le config_secret_roles.json à bien été remplacé", ephemeral=True)
+    
+
+
+
+
+
 
 # ------------------------------------ Gestion des erreurs de permissions  ---------------------------
 

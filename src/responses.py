@@ -5,7 +5,7 @@ from discord.ext import commands
 async def generate_list_roles_embed(roles, current_page, total_pages, guild_id, bot: commands.Bot):
 
     guild = bot.get_guild(guild_id)
-    role_config = gestionJson.load_role_config()
+    role_config = gestionJson.load_json("config_roles")
     nb_roles = 0
     
     embed=discord.Embed(
@@ -52,7 +52,7 @@ async def generate_list_roles_embed(roles, current_page, total_pages, guild_id, 
 async def generate_list_secret_roles_embed(roles, current_page, total_pages, guild_id, bot: commands.Bot):
     await asyncio.sleep(0.01)
     guild = bot.get_guild(guild_id)
-    secret_roles = gestionJson.load_secret_role_config()
+    secret_roles = gestionJson.load_json("config_secret_roles")
     nb_roles = 0
 
     embed=discord.Embed(
@@ -94,7 +94,7 @@ async def generate_list_secret_roles_embed(roles, current_page, total_pages, gui
 
 def secret_role(user_message: discord.Message, guild_id: int, channel_id: int):
     
-    roles = gestionJson.load_secret_role_config()
+    roles = gestionJson.load_json("config_secret_roles")
     try:
         secret_roles_list = list(roles[str(guild_id)][str(channel_id)].items())
     except KeyError:

@@ -2,3 +2,4 @@ __pycache__
 .env
 config_roles.json
 config_secret_roles.json
+temp_channels.json

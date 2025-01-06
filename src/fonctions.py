@@ -29,5 +29,5 @@ async def find_channel_id(bot: commands.Bot, message_id: int, guild_id: int):
 
 def json_init():
     data = {}
-    gestionJson.save_role_config(data=data)
-    gestionJson.save_secret_role_config(data=data)
+    gestionJson.save_json(name="config_roles",data=data)
+    gestionJson.save_json(name="config_secret_roles",data=data)
