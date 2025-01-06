@@ -1,6 +1,6 @@
 from typing import Final
 from dotenv import load_dotenv
-import os,discord
+import os, discord, asyncio
 from discord.ext import commands, tasks
 import fonctions, gestionJson, gestionPages, responses
 
@@ -343,18 +343,38 @@ async def delete_secret_role(interaction: discord.Interaction, channel: discord.
     await interaction.edit(content=f"Le message `{message}` n'attribue plus de rôle")
 
 
+@bot.slash_command(name="list_of_secret_roles", description="Affiche la liste des tous les rôles attribués avec un message secret.")
+@commands.has_permissions(manage_roles=True)
+async def list_reaction_roles(interaction: discord.Interaction):
+    
+    guild_id = interaction.guild.id
+    secret_roles = gestionJson.load_secret_role_config()
+    if str(guild_id) in secret_roles:
+        secret_roles_guild = secret_roles[str(guild_id)]
+        secret_roles_guild_list = list(secret_roles_guild.items())
+    else :
+        secret_roles_guild_list = []
+    
+    await interaction.response.defer()
+    paginator = gestionPages.Paginator(items=secret_roles_guild_list,embed_generator=responses.generate_list_secret_roles_embed, identifiant_for_embed=guild_id, bot=bot)
+    embed,files = await paginator.create_embed()
+    await interaction.followup.send(embed=embed, files=files, view=paginator)
+
+
+
+
 # ------------------------------------ Gestion des erreurs de permissions  ---------------------------
 
-@bot.event
-async def on_application_command_error(interaction: discord.Interaction, error):
-    if isinstance(error, commands.MissingRole):
-        await interaction.edit(
-            content="Vous n'avez pas le rôle requis pour utiliser cette commande."
-        )
-    else:
-        await interaction.edit(
-            content="Une erreur est survenue lors de l'exécution de la commande."
-        )
+# @bot.event
+# async def on_application_command_error(interaction: discord.Interaction, error):
+#     if isinstance(error, commands.MissingRole):
+#         await interaction.edit(
+#             content="Vous n'avez pas le rôle requis pour utiliser cette commande."
+#         )
+#     else:
+#         await interaction.edit(
+#             content="Une erreur est survenue lors de l'exécution de la commande."
+#         )
 
 
 def main():
