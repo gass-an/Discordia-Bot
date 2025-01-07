@@ -168,10 +168,18 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
 
 
 
-
-
-
 # ------------------------------------ Commandes du bot  ---------------------------------------------
+
+@bot.slash_command(name="help", description="Affiche la liste des commandes disponible avec le bot")
+async def help(interaction: discord.Interaction):
+    help_infos = gestionJson.load_json("help")
+    list_help_info = list(help_infos.items())
+
+    await interaction.response.defer()
+    paginator = gestionPages.Paginator(items=list_help_info,embed_generator=responses.generate_help_embed, identifiant_for_embed=None, bot=None)
+    embed,files = await paginator.create_embed()
+    await interaction.followup.send(embed=embed, files=files, view=paginator)
+
 
 # /ping (répond : Pong!) 
 @bot.slash_command(name="ping",description="Ping-pong (pour vérifier que le bot est bien UP !)")
@@ -331,7 +339,7 @@ async def list_reaction_roles(interaction: discord.Interaction):
 
 # ---------- Secrets Roles ------------
 
-@bot.slash_command(name="add_secret_role", description="Attribue un role défini si l'utilisateur entre le bon message dans le bon channel")
+@bot.slash_command(name="add_secret_role", description="Attribue un role défini si l'utilisateur entre le bon message dans le bon channel.")
 @discord.option("message", str, description="Le message exact pour que le rôle soit attribué.")
 @discord.option("channel", discord.TextChannel, description="Le channel cible pour le message.")
 @discord.option("role", discord.Role, description="Le rôle attribué.")
@@ -390,7 +398,7 @@ async def message_secret_role_autocomplete(interaction: discord.AutocompleteCont
     return [message for message in all_messages if user_input in message.lower()][:25]
 
 
-@bot.slash_command(name="delete_secret_role", description="Attribue un role défini si l'utilisateur entre le bon message dans le bon channel")
+@bot.slash_command(name="delete_secret_role", description="Supprime l'attibution d'un secret_role déjà paramétré.")
 @discord.option("channel", discord.TextChannel, description="Le channel cible pour le message.")
 @discord.option("message", str, description="Le message exact pour que le rôle soit attribué.", autocomplete=message_secret_role_autocomplete)
 @commands.has_permissions(manage_roles=True)
@@ -461,13 +469,6 @@ async def init_creation_voice_channel(interaction: discord.Interaction, channel:
     gestionJson.save_json("temp_channels", temp_channels)
 
     await interaction.edit(content=f"Le salon `{channel.name}` est désormais paramétré pour créer des salons pour {user_limit} personnes maximum")
-
-
-
-
-
-
-
 
 
 

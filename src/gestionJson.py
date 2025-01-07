@@ -2,7 +2,7 @@ import json
 
 def load_json(name: str):
     try:
-        with open(f"./json/{name}.json","r") as file:
+        with open(f"./json/{name}.json","r", encoding="utf-8") as file:
             return json.load(file)
     except FileNotFoundError:
         return {}
