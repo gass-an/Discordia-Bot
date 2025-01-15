@@ -32,7 +32,7 @@ async def on_ready():
         print("\nLes commandes globales ont été synchronisées.")
     except Exception as e:
         print(f"Erreur lors de la synchronisation des commandes : {e}")
-#    fonctions.json_init()
+    fonctions.json_init()
     print(f"{bot.user} est en cours d'exécution !\n")
 
 
